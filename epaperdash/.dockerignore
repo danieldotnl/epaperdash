@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.gitignore
+.claude/
+*.md
+dashboard.png
+dashboard_raw.png
+served*.png
+render.py

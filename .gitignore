@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Virtual envs
+.venv/
+venv/
+
+# Generated dashboard artifacts (dev only)
+dashboard*.png
+dashboard_*.png
+served*.png
+*.bmp
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Claude Code per-project state
+.claude/
