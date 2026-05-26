@@ -46,7 +46,7 @@ class Renderer:
         quantized = (
             Image.open(BytesIO(rgb_png))
             .convert("RGB")
-            .quantize(palette=_GRAY4_PALETTE, dither=Image.FLOYDSTEINBERG)
+            .quantize(palette=_GRAY4_PALETTE, dither=Image.NONE)
         )
         out = BytesIO()
         quantized.save(out, "PNG", optimize=True)
