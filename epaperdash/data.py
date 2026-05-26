@@ -1,4 +1,7 @@
-"""Step 1: hardcoded fakes. Step 2 swaps gather_state() to hit HA REST API.
+"""Step 2: gather_state() pulls the wist-je-dat fact live from HA.
+
+The rest of the dashboard (calendar, weather, recycling, birthdays) is still
+hardcoded — separate iterations will wire each panel to its own HA entity.
 
 Event categories used by the template:
   - calendar   ▣  (regular agenda items)
@@ -8,8 +11,23 @@ Recycling and birthdays live in their own panels and aren't mixed into the
 agenda.
 """
 
+import logging
 
-def gather_state() -> dict:
+from ha_client import HAClientError, get_state
+
+log = logging.getLogger("epaperdash")
+
+FACT_ENTITY = "input_text.wistjedat"
+FACT_ERROR = "Wist je dat… <em>(kon Home Assistant niet bereiken)</em>"
+
+
+async def gather_state() -> dict:
+    try:
+        fact = await get_state(FACT_ENTITY)
+    except HAClientError as e:
+        log.warning("fact fetch failed: %s", e)
+        fact = FACT_ERROR
+
     return {
         "header": {
             "weekday": "Dinsdag",
@@ -50,8 +68,5 @@ def gather_state() -> dict:
             {"date": "Za 22 aug", "name": "Sophie", "age": None},
             {"date": "Wo 4 sep",  "name": "Oma",    "age": None},
         ],
-        "fact": (
-            "Een groep flamingo's heet een <strong>flamboyance</strong>. "
-            "Ze krijgen hun roze kleur van de carotenoïden in de pekelkreeftjes die ze eten."
-        ),
+        "fact": fact,
     }

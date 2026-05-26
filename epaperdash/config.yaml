@@ -1,10 +1,11 @@
 name: ePaperDash
-version: "0.1.5"
+version: "0.2.0"
 slug: epaperdash
 description: Renders a dashboard image for an e-paper panel
 arch:
   - amd64
 init: false
+homeassistant_api: true
 ports:
   8000/tcp: 8000
 ports_description:

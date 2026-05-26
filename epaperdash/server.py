@@ -49,7 +49,7 @@ async def health() -> str:
 async def dashboard(raw: bool = False) -> Response:
     """raw=true returns the un-dithered RGB screenshot (debug only)."""
     try:
-        png = await app.state.renderer.render(gather_state(), raw=raw)
+        png = await app.state.renderer.render(await gather_state(), raw=raw)
     except Exception:
         log.exception("render failed")
         raise

@@ -1,0 +1,48 @@
+"""Thin async wrapper around the HA Supervisor-proxied REST API.
+
+Used inside an add-on with `homeassistant_api: true` so Supervisor injects
+SUPERVISOR_TOKEN. Outside that context the token is absent and calls fail
+fast with a clear log line.
+"""
+
+import logging
+import os
+
+import httpx
+
+log = logging.getLogger("epaperdash")
+
+BASE_URL = "http://supervisor/core"
+TIMEOUT_SECONDS = 5.0
+_UNAVAILABLE = {"", "unknown", "unavailable", "none"}
+
+
+class HAClientError(Exception):
+    """Raised when the HA state can't be retrieved or is not usable."""
+
+
+async def get_state(entity_id: str) -> str:
+    """Return the trimmed `state` field of an entity, or raise HAClientError.
+
+    Raises on: missing token, network error, non-2xx response, or a state
+    value that's empty/unknown/unavailable.
+    """
+    token = os.environ.get("SUPERVISOR_TOKEN")
+    if not token:
+        raise HAClientError("SUPERVISOR_TOKEN not set")
+
+    url = f"{BASE_URL}/api/states/{entity_id}"
+    headers = {"Authorization": f"Bearer {token}"}
+
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            state = (resp.json().get("state") or "").strip()
+    except (httpx.HTTPError, ValueError) as e:
+        raise HAClientError(f"HA fetch failed for {entity_id}: {e}") from e
+
+    if state.lower() in _UNAVAILABLE:
+        raise HAClientError(f"{entity_id} is {state!r}")
+
+    return state
