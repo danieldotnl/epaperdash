@@ -17,7 +17,7 @@ HERE = Path(__file__).resolve().parent
 
 async def main(raw: bool) -> None:
     async with async_playwright() as p:
-        browser = await p.chromium.launch()
+        browser = await p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
         renderer = Renderer(browser)
         png = await renderer.render(gather_state(), raw=raw)
         await browser.close()

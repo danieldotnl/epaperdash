@@ -16,7 +16,8 @@ from renderer import Renderer
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with async_playwright() as p:
-        browser = await p.chromium.launch()
+        # In Docker: sandbox needs caps we don't have, and /dev/shm defaults to 64 MB.
+        browser = await p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
         app.state.renderer = Renderer(browser)
         try:
             yield
