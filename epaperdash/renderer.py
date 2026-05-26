@@ -8,6 +8,13 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from playwright.async_api import Browser
 from PIL import Image
 
+# 4-level grayscale palette the reTerminal E1001 supports natively (2-bit).
+# Values are evenly spaced 0/85/170/255 across 0–255.
+_GRAY4_PALETTE = Image.new("P", (1, 1))
+_GRAY4_PALETTE.putpalette(
+    [0, 0, 0, 85, 85, 85, 170, 170, 170, 255, 255, 255] + [0] * (256 - 4) * 3
+)
+
 WIDTH, HEIGHT = 800, 480
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
@@ -36,11 +43,11 @@ class Renderer:
         if raw:
             return rgb_png
 
-        dithered = (
+        quantized = (
             Image.open(BytesIO(rgb_png))
-            .convert("L")
-            .convert("1", dither=Image.FLOYDSTEINBERG)
+            .convert("RGB")
+            .quantize(palette=_GRAY4_PALETTE, dither=Image.FLOYDSTEINBERG)
         )
         out = BytesIO()
-        dithered.save(out, "PNG", optimize=True)
+        quantized.save(out, "PNG", optimize=True)
         return out.getvalue()
