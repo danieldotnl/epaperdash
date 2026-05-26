@@ -3,8 +3,8 @@
 Run:  uv run uvicorn server:app --host 0.0.0.0 --port 8000 --reload
 """
 
+import logging
 import sys
-import traceback
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -14,6 +14,14 @@ from playwright.async_api import async_playwright
 from data import gather_state
 from renderer import Renderer
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    stream=sys.stderr,
+)
+log = logging.getLogger("epaperdash")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,7 +29,7 @@ async def lifespan(app: FastAPI):
         # In Docker: sandbox needs caps we don't have, and /dev/shm defaults to 64 MB.
         browser = await p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
         app.state.renderer = Renderer(browser)
-        print("epaperdash: chromium launched, renderer ready", file=sys.stderr, flush=True)
+        log.info("chromium launched, renderer ready")
         try:
             yield
         finally:
@@ -43,9 +51,7 @@ async def dashboard(raw: bool = False) -> Response:
     try:
         png = await app.state.renderer.render(gather_state(), raw=raw)
     except Exception:
-        print("epaperdash: render failed", file=sys.stderr, flush=True)
-        traceback.print_exc(file=sys.stderr)
-        sys.stderr.flush()
+        log.exception("render failed")
         raise
     return Response(
         content=png,
