@@ -6,8 +6,8 @@
 <style>
   :root {
     --ink: #000;
-    --ink-2: #555;   /* 60% — secondary text, allowed by 4-level gray panel */
-    --ink-3: #aaa;   /* 30% — rules, tertiary */
+    --ink-2: #000;   /* panel is 1-bit B/W in ESPHome — no native gray */
+    --ink-3: #000;
     --paper: #fff;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -261,7 +261,7 @@
 </style>
 </head>
 <body>
-{% set icons = {"calendar": "▣", "school": "✎"} %}
+{% set icons = {"calendar": "▣", "school": "✎", "waste": "♻"} %}
 <div class="page">
 
   <header>
@@ -293,7 +293,7 @@
           <div class="ev">
             <div class="icon">{{ icons[ev.cat] }}</div>
             <div class="title">{{ ev.title }}</div>
-            <div class="when">{{ ev.time if ev.time else "Hele dag" }}</div>
+            <div class="when">{{ ev.time }}</div>
           </div>
           {% endfor %}
         {% else %}
@@ -312,7 +312,7 @@
           <div class="ev">
             <div class="icon">{{ icons[ev.cat] }}</div>
             <div class="title">{{ ev.title }}</div>
-            <div class="when">{{ ev.time if ev.time else "Hele dag" }}</div>
+            <div class="when">{{ ev.time }}</div>
           </div>
           {% endfor %}
         {% else %}
@@ -330,7 +330,7 @@
             <div class="day-stamp">{{ r.weekday_short }} {{ r.date_short }}</div>
             <div class="icon">{{ icons[r.cat] }}</div>
             <div class="title">{{ r.title }}</div>
-            <div class="when">{{ r.time if r.time else "hele dag" }}</div>
+            <div class="when">{{ r.time }}</div>
           </div>
           {% endfor %}
         {% else %}

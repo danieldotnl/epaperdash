@@ -21,8 +21,8 @@ class HAClientError(Exception):
     """Raised when the HA state can't be retrieved or is not usable."""
 
 
-async def get_state(entity_id: str) -> str:
-    """Return the trimmed `state` field of an entity, or raise HAClientError.
+async def get_entity(entity_id: str) -> tuple[str, dict]:
+    """Return `(state, attributes)` for an entity, or raise HAClientError.
 
     Raises on: missing token, network error, non-2xx response, or a state
     value that's empty/unknown/unavailable.
@@ -38,11 +38,17 @@ async def get_state(entity_id: str) -> str:
         async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
             resp = await client.get(url, headers=headers)
             resp.raise_for_status()
-            state = (resp.json().get("state") or "").strip()
+            data = resp.json()
     except (httpx.HTTPError, ValueError) as e:
         raise HAClientError(f"HA fetch failed for {entity_id}: {e}") from e
 
+    state = (data.get("state") or "").strip()
     if state.lower() in _UNAVAILABLE:
         raise HAClientError(f"{entity_id} is {state!r}")
 
+    return state, data.get("attributes") or {}
+
+
+async def get_state(entity_id: str) -> str:
+    state, _ = await get_entity(entity_id)
     return state
