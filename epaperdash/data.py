@@ -7,6 +7,7 @@ Event categories used by the template:
   - calendar   ◆  (regular agenda items — calendar.home_assistant)
   - school     ✎  (calendar.parro_agenda)
   - holiday    ★  (calendar.holidays_in_netherlands)
+  - birthday   ✿  (calendar.ha_birthdays, also surfaced in VANDAAG/MORGEN)
   - waste      ♻  (today's pickup, surfaced in VANDAAG)
 
 The Afval panel shows the rolling 4 nearest pickups regardless of whether
@@ -15,6 +16,7 @@ one falls today. Multi-day calendar events are repeated per day they span.
 
 import asyncio
 import logging
+import re
 from datetime import date, datetime, time, timedelta
 
 from ha_client import HAClientError, calendar_events, get_entity, get_state
@@ -45,8 +47,13 @@ CALENDARS = [
     ("calendar.home_assistant", "calendar"),
     ("calendar.parro_agenda", "school"),
 ]
-WEEK_ROW_LIMIT = 5
+AGENDA_ROW_CAP = 8  # max entry rows across VANDAAG + MORGEN + DEZE WEEK combined
 CALENDAR_WINDOW_DAYS = 8  # enough to cover today + tomorrow + next-7-day panel
+
+BIRTHDAYS_ENTITY = "calendar.ha_birthdays"
+BIRTHDAY_PANEL_LIMIT = 4
+BIRTHDAY_WINDOW_DAYS = 366  # one full year so every annual entry yields one occurrence
+_BIRTHDAY_YEAR_RE = re.compile(r"^(?P<name>.*?)\s*\(\s*(?P<year>\d{4})\s*\)\s*$")
 
 
 def _parse_sort_date(value) -> date | None:
@@ -57,7 +64,7 @@ def _parse_sort_date(value) -> date | None:
     return date(int(s[0:4]), int(s[4:6]), int(s[6:8]))
 
 
-def _format_waste_date(d: date) -> str:
+def _format_short_date(d: date) -> str:
     return f"{WEEKDAYS_SHORT_NL[d.weekday()]} {d.day} {MONTHS_SHORT_NL[d.month - 1]}"
 
 
@@ -93,7 +100,7 @@ async def _gather_waste(today_date: date) -> tuple[list, list]:
     items.sort(key=lambda x: x[0])
     items = items[:WASTE_ROW_LIMIT]
 
-    rows = [{"date": _format_waste_date(d), "type": label} for d, label in items]
+    rows = [{"date": _format_short_date(d), "type": label} for d, label in items]
     today_events = [
         {"cat": "waste", "title": label, "time": None}
         for d, label in items if d == today_date
@@ -224,7 +231,61 @@ async def _gather_calendar(now: datetime) -> tuple[list, list, list]:
         for x in lst:
             x.pop("_sort")
 
-    return today_events, tomorrow_events, week_rows[:WEEK_ROW_LIMIT]
+    return today_events, tomorrow_events, week_rows
+
+
+def _parse_birthday_title(summary: str) -> tuple[str, int | None]:
+    """Extract (name, birth_year). Year is None when the title has no (YYYY) suffix."""
+    m = _BIRTHDAY_YEAR_RE.match(summary)
+    if m:
+        return m.group("name").strip(), int(m.group("year"))
+    return summary.strip(), None
+
+
+def _birthday_event_title(name: str, age: int | None) -> str:
+    return f"{name} ({age})" if age is not None else name
+
+
+async def _gather_birthdays(now: datetime) -> tuple[list, list, list]:
+    """Returns (panel_rows, today_events, tomorrow_events) from calendar.ha_birthdays."""
+    today_d = now.date()
+    tomorrow_d = today_d + timedelta(days=1)
+    window_start = datetime.combine(today_d, time.min).astimezone()
+    window_end = datetime.combine(
+        today_d + timedelta(days=BIRTHDAY_WINDOW_DAYS), time.min
+    ).astimezone()
+
+    try:
+        raw_events = await calendar_events(BIRTHDAYS_ENTITY, window_start, window_end)
+    except HAClientError as e:
+        log.warning("birthdays fetch failed: %s", e)
+        return [], [], []
+
+    entries: list[tuple[date, str, int | None]] = []
+    for raw in raw_events:
+        ev = _normalize_event(raw, "birthday")
+        if not ev or not ev["dates"]:
+            continue
+        d = ev["dates"][0]
+        name, year = _parse_birthday_title(ev["title"])
+        age = d.year - year if year is not None else None
+        entries.append((d, name, age))
+
+    entries.sort(key=lambda x: x[0])
+
+    panel_rows = [
+        {"date": _format_short_date(d), "name": n, "age": a}
+        for d, n, a in entries[:BIRTHDAY_PANEL_LIMIT]
+    ]
+    today_events = [
+        {"cat": "birthday", "title": _birthday_event_title(n, a), "time": ""}
+        for d, n, a in entries if d == today_d
+    ]
+    tomorrow_events = [
+        {"cat": "birthday", "title": _birthday_event_title(n, a), "time": ""}
+        for d, n, a in entries if d == tomorrow_d
+    ]
+    return panel_rows, today_events, tomorrow_events
 
 
 async def gather_state() -> dict:
@@ -238,6 +299,12 @@ async def gather_state() -> dict:
     tomorrow = now + timedelta(days=1)
     waste_rows, waste_today_events = await _gather_waste(now.date())
     cal_today, cal_tomorrow, week_rows = await _gather_calendar(now)
+    birthday_rows, bday_today, bday_tomorrow = await _gather_birthdays(now)
+
+    today_events = bday_today + waste_today_events + cal_today
+    tomorrow_events = bday_tomorrow + cal_tomorrow
+    week_slack = max(0, AGENDA_ROW_CAP - len(today_events) - len(tomorrow_events))
+    week_rows = week_rows[:week_slack]
 
     return {
         "header": {
@@ -251,21 +318,16 @@ async def gather_state() -> dict:
                 "wind": "wind 12 km/u",
             },
         },
-        "today_events": waste_today_events + cal_today,
+        "today_events": today_events,
         "tomorrow": {
             "weekday_short": WEEKDAYS_SHORT_NL[tomorrow.weekday()],
             "date_short": f"{tomorrow.day} {MONTHS_SHORT_NL[tomorrow.month - 1]}",
             "weather_icon": "⛅",
             "temp_high": "20°",
-            "events": cal_tomorrow,
+            "events": tomorrow_events,
         },
         "week_rows": week_rows,
         "recycling": waste_rows,
-        "birthdays": [
-            {"date": "Di 2 jun",  "name": "Emma",   "age": 8},
-            {"date": "Vr 12 jun", "name": "Jan",    "age": 40},
-            {"date": "Za 22 aug", "name": "Sophie", "age": None},
-            {"date": "Wo 4 sep",  "name": "Oma",    "age": None},
-        ],
+        "birthdays": birthday_rows,
         "fact": fact,
     }
