@@ -8,13 +8,6 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from playwright.async_api import Browser
 from PIL import Image
 
-# 4-level grayscale palette the reTerminal E1001 supports natively (2-bit).
-# Values are evenly spaced 0/85/170/255 across 0–255.
-_GRAY4_PALETTE = Image.new("P", (1, 1))
-_GRAY4_PALETTE.putpalette(
-    [0, 0, 0, 85, 85, 85, 170, 170, 170, 255, 255, 255] + [0] * (256 - 4) * 3
-)
-
 WIDTH, HEIGHT = 800, 480
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
@@ -43,11 +36,9 @@ class Renderer:
         if raw:
             return rgb_png
 
-        quantized = (
-            Image.open(BytesIO(rgb_png))
-            .convert("RGB")
-            .quantize(palette=_GRAY4_PALETTE, dither=Image.NONE)
-        )
+        # The ESPHome panel is 1-bit B/W — hard-threshold to pure black/white
+        # so anti-aliased edges don't land on grays the panel can't show.
+        quantized = Image.open(BytesIO(rgb_png)).convert("1", dither=Image.NONE)
         out = BytesIO()
         quantized.save(out, "PNG", optimize=True)
         return out.getvalue()

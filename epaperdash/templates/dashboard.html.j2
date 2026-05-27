@@ -5,10 +5,11 @@
 <title>Keukendashboard</title>
 <style>
   :root {
-    --ink: #000;
-    --ink-2: #000;   /* panel is 1-bit B/W in ESPHome — no native gray */
-    --ink-3: #000;
+    --ink: #000;     /* panel is 1-bit B/W in ESPHome — no native gray */
     --paper: #fff;
+    /* One knob for body + footer text size. Header sizes are left literal
+       on purpose. Bump this and re-render to taste; ratios stay locked. */
+    --scale: 1.12;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
@@ -46,7 +47,7 @@
   header .date-block .date {
     font-size: 18px;
     font-weight: 600;
-    color: var(--ink-2);
+    color: var(--ink);
     margin-top: 6px;
   }
   header .weather-block {
@@ -85,7 +86,7 @@
   header .weather-block .stats .wind {
     font-size: 13px;
     font-weight: 500;
-    color: var(--ink-2);
+    color: var(--ink);
   }
 
   /* ─── body: two columns ─── */
@@ -101,11 +102,11 @@
     overflow: hidden;
   }
   .pane h2 {
-    font-size: 11px;
+    font-size: calc(11px * var(--scale));
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 2px;
-    color: var(--ink-2);
+    color: var(--ink);
     margin-bottom: 6px;
   }
 
@@ -116,25 +117,25 @@
     display: flex;
     align-items: baseline;
     gap: 10px;
-    border-bottom: 1px solid var(--ink-3);
+    border-bottom: 1px solid var(--ink);
     padding-bottom: 3px;
     margin-bottom: 6px;
   }
   .agenda-block .head .lbl {
-    font-size: 16px;
+    font-size: calc(16px * var(--scale));
     font-weight: 800;
     letter-spacing: 0.5px;
   }
   .agenda-block .head .sub {
-    font-size: 13px;
+    font-size: calc(13px * var(--scale));
     font-weight: 600;
-    color: var(--ink-2);
+    color: var(--ink);
     flex: 1;
   }
   .agenda-block .head .wx {
-    font-size: 13px;
+    font-size: calc(13px * var(--scale));
     font-weight: 700;
-    color: var(--ink-2);
+    color: var(--ink);
   }
   .agenda-block .ev {
     display: grid;
@@ -144,24 +145,24 @@
     padding: 2px 0;
   }
   .agenda-block .ev .icon {
-    font-size: 14px;
+    font-size: calc(14px * var(--scale));
     font-weight: 700;
     text-align: center;
   }
   .agenda-block .ev .title {
-    font-size: 15px;
+    font-size: calc(15px * var(--scale));
     font-weight: 700;
   }
   .agenda-block .ev .when {
-    font-size: 12px;
+    font-size: calc(12px * var(--scale));
     font-weight: 500;
-    color: var(--ink-2);
+    color: var(--ink);
     font-variant-numeric: tabular-nums;
   }
   .agenda-block .empty {
-    font-size: 13px;
+    font-size: calc(13px * var(--scale));
     font-style: italic;
-    color: var(--ink-3);
+    color: var(--ink);
     padding: 2px 0;
   }
 
@@ -172,31 +173,31 @@
     column-gap: 8px;
     align-items: baseline;
     padding: 3px 0;
-    border-bottom: 1px solid var(--ink-3);
+    border-bottom: 1px solid var(--ink);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
   .week-row:last-child { border-bottom: none; }
   .week-row .day-stamp {
-    font-size: 12px;
+    font-size: calc(12px * var(--scale));
     font-weight: 700;
-    color: var(--ink-2);
+    color: var(--ink);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
   .week-row .icon {
-    font-size: 13px;
+    font-size: calc(13px * var(--scale));
     font-weight: 700;
     text-align: center;
   }
   .week-row .title {
-    font-size: 14px;
+    font-size: calc(14px * var(--scale));
     font-weight: 700;
   }
   .week-row .when {
-    font-size: 12px;
+    font-size: calc(12px * var(--scale));
     font-weight: 500;
-    color: var(--ink-2);
+    color: var(--ink);
   }
 
   /* ── right pane: panels ── */
@@ -215,25 +216,25 @@
     column-gap: 8px;
     align-items: baseline;
     padding: 3px 0;
-    border-bottom: 1px solid var(--ink-3);
+    border-bottom: 1px solid var(--ink);
     font-variant-numeric: tabular-nums;
   }
   .panel .row:last-child { border-bottom: none; }
   .panel .row .when {
-    font-size: 12px;
+    font-size: calc(12px * var(--scale));
     font-weight: 700;
-    color: var(--ink-2);
+    color: var(--ink);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
   .panel .row .what {
-    font-size: 14px;
+    font-size: calc(14px * var(--scale));
     font-weight: 700;
   }
   .panel .row .what .age {
-    font-size: 12px;
+    font-size: calc(12px * var(--scale));
     font-weight: 600;
-    color: var(--ink-2);
+    color: var(--ink);
   }
 
   /* ─── footer ─── */
@@ -244,7 +245,7 @@
     gap: 12px;
   }
   footer .badge {
-    font-size: 10px;
+    font-size: calc(10px * var(--scale));
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 2px;
@@ -253,10 +254,20 @@
     white-space: nowrap;
   }
   footer .fact {
-    font-size: 13px;
+    font-size: calc(13px * var(--scale));
     font-weight: 500;
     line-height: 1.3;
     flex: 1;
+  }
+  /* last-refresh stamp, tucked in the bottom-right corner. Kept small and
+     fixed (not scaled) — meant to be unobtrusive. No gray on e-paper, so
+     "subtle" can only mean small. */
+  footer .stamp {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.5px;
   }
 </style>
 </head>
@@ -372,6 +383,7 @@
   <footer>
     <div class="badge">Wist je dat?</div>
     <div class="fact">{{ fact|safe }}</div>
+    <div class="stamp">{{ refreshed }}</div>
   </footer>
 
 </div>
