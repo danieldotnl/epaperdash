@@ -56,6 +56,7 @@ async def _fetch_attrs(entity_id: str) -> dict:
     """Return attributes dict for an entity, or {} on failure."""
     try:
         _, attrs = await get_entity(entity_id)
+        log.info("attrs for %s: %r", entity_id, attrs)  # TEMP debug
         return attrs
     except HAClientError as e:
         log.warning("attrs fetch failed for %s: %s", entity_id, e)
