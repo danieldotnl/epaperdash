@@ -1,7 +1,8 @@
 """gather_state() collects the live dashboard payload from HA.
 
-Live so far: wist-je-dat fact, afval (cyclus_* + cleanprofs_gft), and the
-agenda (calendar.* entities). Weather and birthdays are still hardcoded.
+Live: wist-je-dat fact, afval (cyclus_* + cleanprofs_gft), agenda
+(calendar.* entities), birthdays, and weather (weather.* entity state +
+the daily get_forecasts action). Nothing on the dashboard is hardcoded.
 
 Event categories used by the template:
   - calendar   ◆  (regular agenda items — calendar.home_assistant)
@@ -19,7 +20,7 @@ import logging
 import re
 from datetime import date, datetime, time, timedelta
 
-from ha_client import HAClientError, calendar_events, get_entity, get_state
+from ha_client import HAClientError, calendar_events, get_entity, get_forecasts, get_state
 
 log = logging.getLogger("epaperdash")
 
@@ -49,6 +50,23 @@ CALENDARS = [
 ]
 AGENDA_ROW_CAP = 8  # max entry rows across VANDAAG + MORGEN + DEZE WEEK combined
 CALENDAR_WINDOW_DAYS = 8  # enough to cover today + tomorrow + next-7-day panel
+
+WEATHER_ENTITY = "weather.tomorrow_io_home_daily"
+# HA's standardized condition strings → monochrome glyph + Dutch label.
+# Glyphs render as text (not colour emoji) via font-variant-emoji in the template.
+WEATHER_GLYPHS = {
+    "clear-night": "☾", "cloudy": "☁", "fog": "🌫", "hail": "🌧",
+    "lightning": "🌩", "lightning-rainy": "⛈", "partlycloudy": "⛅",
+    "pouring": "🌧", "rainy": "🌦", "snowy": "❄", "snowy-rainy": "🌨",
+    "sunny": "☀", "windy": "🌬", "windy-variant": "🌬", "exceptional": "⚠",
+}
+WEATHER_CONDITIONS_NL = {
+    "clear-night": "Helder", "cloudy": "Bewolkt", "fog": "Mist", "hail": "Hagel",
+    "lightning": "Onweer", "lightning-rainy": "Onweer en regen",
+    "partlycloudy": "Half bewolkt", "pouring": "Stortregen", "rainy": "Regen",
+    "snowy": "Sneeuw", "snowy-rainy": "Natte sneeuw", "sunny": "Zonnig",
+    "windy": "Winderig", "windy-variant": "Winderig", "exceptional": "Extreem weer",
+}
 
 BIRTHDAYS_ENTITY = "calendar.ha_birthdays"
 BIRTHDAY_PANEL_LIMIT = 4
@@ -288,6 +306,75 @@ async def _gather_birthdays(now: datetime) -> tuple[list, list, list]:
     return panel_rows, today_events, tomorrow_events
 
 
+def _fmt_temp(value) -> str:
+    """Round to a whole-degree string like '21°', or '–' when unparseable."""
+    try:
+        return f"{round(float(value))}°"
+    except (TypeError, ValueError):
+        return "–"
+
+
+def _fmt_wind(value) -> str:
+    """Tomorrow.io reports km/h for metric; render 'wind 6 km/u' or '' if absent."""
+    try:
+        return f"wind {round(float(value))} km/u"
+    except (TypeError, ValueError):
+        return ""
+
+
+def _fmt_rain(forecast: dict) -> str | None:
+    """Chance-of-rain as '30%', or None when the forecast omits it."""
+    try:
+        return f"{round(float(forecast.get('precipitation_probability')))}%"
+    except (TypeError, ValueError):
+        return None
+
+
+def _condition_nl(condition: str) -> str:
+    return WEATHER_CONDITIONS_NL.get(condition, condition.capitalize() or "–")
+
+
+async def _gather_weather() -> tuple[dict, dict]:
+    """Returns (header_weather, tomorrow_weather).
+
+    Current condition + wind come from the entity state/attributes; today's and
+    tomorrow's high/low and rain chance come from the daily forecast. Each source
+    degrades independently to placeholders so a partial outage still renders.
+    """
+    try:
+        state, attrs = await get_entity(WEATHER_ENTITY)
+    except HAClientError as e:
+        log.warning("weather state fetch failed: %s", e)
+        state, attrs = "", {}
+
+    try:
+        forecast = await get_forecasts(WEATHER_ENTITY, "daily")
+    except HAClientError as e:
+        log.warning("weather forecast fetch failed: %s", e)
+        forecast = []
+
+    today_fc = forecast[0] if len(forecast) >= 1 else {}
+    tomorrow_fc = forecast[1] if len(forecast) >= 2 else {}
+
+    today_cond = state or today_fc.get("condition") or ""
+    tomorrow_cond = tomorrow_fc.get("condition") or ""
+
+    header_weather = {
+        "icon": WEATHER_GLYPHS.get(today_cond, "•"),
+        "temp_high": _fmt_temp(today_fc.get("temperature")),
+        "temp_low": _fmt_temp(today_fc.get("templow")),
+        "condition": _condition_nl(today_cond),
+        "wind": _fmt_wind(attrs.get("wind_speed")),
+        "rain": _fmt_rain(today_fc),
+    }
+    tomorrow_weather = {
+        "icon": WEATHER_GLYPHS.get(tomorrow_cond, "•"),
+        "temp_high": _fmt_temp(tomorrow_fc.get("temperature")),
+        "rain": _fmt_rain(tomorrow_fc),
+    }
+    return header_weather, tomorrow_weather
+
+
 async def gather_state() -> dict:
     try:
         fact = await get_state(FACT_ENTITY)
@@ -300,6 +387,7 @@ async def gather_state() -> dict:
     waste_rows, waste_today_events = await _gather_waste(now.date())
     cal_today, cal_tomorrow, week_rows = await _gather_calendar(now)
     birthday_rows, bday_today, bday_tomorrow = await _gather_birthdays(now)
+    header_weather, tomorrow_weather = await _gather_weather()
 
     today_events = bday_today + waste_today_events + cal_today
     tomorrow_events = bday_tomorrow + cal_tomorrow
@@ -314,20 +402,15 @@ async def gather_state() -> dict:
         "header": {
             "weekday": WEEKDAYS_NL[now.weekday()],
             "date": f"{now.day} {MONTHS_NL[now.month - 1]} {now.year}",
-            "weather": {
-                "icon": "⛅",
-                "temp_high": 21,
-                "temp_low": 11,
-                "condition": "Half bewolkt",
-                "wind": "wind 12 km/u",
-            },
+            "weather": header_weather,
         },
         "today_events": today_events,
         "tomorrow": {
             "weekday_short": WEEKDAYS_SHORT_NL[tomorrow.weekday()],
             "date_short": f"{tomorrow.day} {MONTHS_SHORT_NL[tomorrow.month - 1]}",
-            "weather_icon": "⛅",
-            "temp_high": "20°",
+            "weather_icon": tomorrow_weather["icon"],
+            "temp_high": tomorrow_weather["temp_high"],
+            "rain": tomorrow_weather["rain"],
             "events": tomorrow_events,
         },
         "week_rows": week_rows,
