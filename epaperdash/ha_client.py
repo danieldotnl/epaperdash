@@ -7,6 +7,7 @@ fast with a clear log line.
 
 import logging
 import os
+from datetime import datetime
 
 import httpx
 
@@ -52,3 +53,26 @@ async def get_entity(entity_id: str) -> tuple[str, dict]:
 async def get_state(entity_id: str) -> str:
     state, _ = await get_entity(entity_id)
     return state
+
+
+async def calendar_events(entity_id: str, start: datetime, end: datetime) -> list[dict]:
+    """Return events for `entity_id` in [start, end). Raises HAClientError on failure."""
+    token = os.environ.get("SUPERVISOR_TOKEN")
+    if not token:
+        raise HAClientError("SUPERVISOR_TOKEN not set")
+
+    url = f"{BASE_URL}/api/calendars/{entity_id}"
+    params = {"start": start.isoformat(), "end": end.isoformat()}
+    headers = {"Authorization": f"Bearer {token}"}
+
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
+            resp = await client.get(url, headers=headers, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+    except (httpx.HTTPError, ValueError) as e:
+        raise HAClientError(f"HA calendar fetch failed for {entity_id}: {e}") from e
+
+    if not isinstance(data, list):
+        raise HAClientError(f"unexpected calendar payload for {entity_id}: {type(data).__name__}")
+    return data
