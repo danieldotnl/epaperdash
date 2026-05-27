@@ -303,8 +303,12 @@ async def gather_state() -> dict:
 
     today_events = bday_today + waste_today_events + cal_today
     tomorrow_events = bday_tomorrow + cal_tomorrow
-    week_slack = max(0, AGENDA_ROW_CAP - len(today_events) - len(tomorrow_events))
-    week_rows = week_rows[:week_slack]
+    # Empty VANDAAG/MORGEN still cost 1 line each via the "geen afspraken" placeholder.
+    week_slack = max(
+        0,
+        AGENDA_ROW_CAP - max(1, len(today_events)) - max(1, len(tomorrow_events)),
+    )
+    week_rows = week_rows[:week_slack] if week_slack > 0 else None
 
     return {
         "header": {
