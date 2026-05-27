@@ -41,7 +41,7 @@ WASTE_ROW_LIMIT = 4
 
 
 def _parse_sort_date(value) -> date | None:
-    """Parse afvalwijzer's YYYYMMDD sort_date (int or str)."""
+    """Parse afvalwijzer's YYYYMMDD Sort_date (int or str)."""
     s = str(value or "")
     if len(s) != 8 or not s.isdigit():
         return None
@@ -56,7 +56,6 @@ async def _fetch_attrs(entity_id: str) -> dict:
     """Return attributes dict for an entity, or {} on failure."""
     try:
         _, attrs = await get_entity(entity_id)
-        log.info("attrs for %s: %r", entity_id, attrs)  # TEMP debug
         return attrs
     except HAClientError as e:
         log.warning("attrs fetch failed for %s: %s", entity_id, e)
@@ -70,11 +69,11 @@ async def _gather_waste(today_date: date) -> tuple[list, list]:
         *(_fetch_attrs(f"sensor.cyclus_{k}") for k in fraction_keys),
         _fetch_attrs(CLEANPROFS_ENTITY),
     )
-    cleanprofs_date = _parse_sort_date(cleanprofs_attrs.get("sort_date"))
+    cleanprofs_date = _parse_sort_date(cleanprofs_attrs.get("Sort_date"))
 
     items: list[tuple[date, str]] = []
     for key, attrs in zip(fraction_keys, fraction_attrs):
-        d = _parse_sort_date(attrs.get("sort_date"))
+        d = _parse_sort_date(attrs.get("Sort_date"))
         if d is None:
             continue
         label = WASTE_FRACTIONS[key]
