@@ -15,6 +15,9 @@ dashboard_*.png
 served*.png
 *.bmp
 
+# Secrets
+.env
+
 # OS / editor
 .DS_Store
 Thumbs.db
