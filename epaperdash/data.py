@@ -120,7 +120,7 @@ async def _gather_waste(today_date: date) -> tuple[list, list]:
 
     rows = [{"date": _format_short_date(d), "type": label} for d, label in items]
     today_events = [
-        {"cat": "waste", "title": label, "time": None}
+        {"cat": "waste", "title": label, "time": ""}
         for d, label in items if d == today_date
     ]
     return rows, today_events
@@ -334,24 +334,33 @@ def _condition_nl(condition: str) -> str:
     return WEATHER_CONDITIONS_NL.get(condition, condition.capitalize() or "–")
 
 
+# Shown only on a cold start that coincides with an outage (no cache yet).
+_PLACEHOLDER_WEATHER: tuple[dict, dict] = (
+    {"icon": "", "temp_high": "–", "temp_low": "–", "condition": "–", "wind": "", "rain": None},
+    {"icon": "", "temp_high": "–", "rain": None},
+)
+# Most recent fully-good read, kept in memory so transient Tomorrow.io outages
+# don't blank the panel. Lost on add-on restart (refilled by the next good read).
+_last_weather: tuple[dict, dict] | None = None
+
+
 async def _gather_weather() -> tuple[dict, dict]:
     """Returns (header_weather, tomorrow_weather).
 
     Current condition + wind come from the entity state/attributes; today's and
-    tomorrow's high/low and rain chance come from the daily forecast. Each source
-    degrades independently to placeholders so a partial outage still renders.
+    tomorrow's high/low and rain chance come from the daily forecast. Tomorrow.io's
+    free tier intermittently 500s upstream, which flips the entity to 'unavailable'
+    and makes get_forecasts error; on any such failure we reuse the last good read
+    rather than render a partial/blank panel.
     """
+    global _last_weather
     try:
         state, attrs = await get_entity(WEATHER_ENTITY)
-    except HAClientError as e:
-        log.warning("weather state fetch failed: %s", e)
-        state, attrs = "", {}
-
-    try:
         forecast = await get_forecasts(WEATHER_ENTITY, "daily")
     except HAClientError as e:
-        log.warning("weather forecast fetch failed: %s", e)
-        forecast = []
+        fallback = "last-good cache" if _last_weather else "placeholders"
+        log.warning("weather fetch failed (%s); using %s", e, fallback)
+        return _last_weather or _PLACEHOLDER_WEATHER
 
     today_fc = forecast[0] if len(forecast) >= 1 else {}
     tomorrow_fc = forecast[1] if len(forecast) >= 2 else {}
@@ -372,7 +381,8 @@ async def _gather_weather() -> tuple[dict, dict]:
         "temp_high": _fmt_temp(tomorrow_fc.get("temperature")),
         "rain": _fmt_rain(tomorrow_fc),
     }
-    return header_weather, tomorrow_weather
+    _last_weather = (header_weather, tomorrow_weather)
+    return _last_weather
 
 
 async def gather_state() -> dict:
