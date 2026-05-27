@@ -273,10 +273,10 @@
       <div class="glyph">{{ header.weather.icon }}</div>
       <div class="stats">
         <div class="now">
-          <span class="temp">{{ header.weather.temp_high }}°</span>
+          <span class="temp">{{ header.weather.temp_high }}</span>
           <span class="cond">{{ header.weather.condition }}</span>
         </div>
-        <div class="range">min {{ header.weather.temp_low }}° · {{ header.weather.wind }}</div>
+        <div class="range">min {{ header.weather.temp_low }}{% if header.weather.rain %} · ☔ {{ header.weather.rain }}{% endif %}{% if header.weather.wind %} · {{ header.weather.wind }}{% endif %}</div>
       </div>
     </div>
   </header>
@@ -305,7 +305,7 @@
         <div class="head">
           <div class="lbl">MORGEN</div>
           <div class="sub">{{ tomorrow.weekday_short }} {{ tomorrow.date_short }}</div>
-          <div class="wx">{{ tomorrow.weather_icon }} {{ tomorrow.temp_high }}</div>
+          <div class="wx">{{ tomorrow.weather_icon }} {{ tomorrow.temp_high }}{% if tomorrow.rain %} · ☔ {{ tomorrow.rain }}{% endif %}</div>
         </div>
         {% if tomorrow.events %}
           {% for ev in tomorrow.events %}
@@ -320,6 +320,7 @@
         {% endif %}
       </div>
 
+      {% if week_rows is not none %}
       <div class="agenda-block">
         <div class="head">
           <div class="lbl">DEZE WEEK</div>
@@ -337,6 +338,7 @@
           <div class="empty">— geen afspraken —</div>
         {% endif %}
       </div>
+      {% endif %}
     </section>
 
     <div class="col-divider"></div>
