@@ -12,6 +12,7 @@ agenda.
 """
 
 import logging
+from datetime import datetime, timedelta
 
 from ha_client import HAClientError, get_state
 
@@ -19,6 +20,13 @@ log = logging.getLogger("epaperdash")
 
 FACT_ENTITY = "input_text.wistjedat"
 FACT_ERROR = "Wist je dat… <em>(kon Home Assistant niet bereiken)</em>"
+
+WEEKDAYS_NL = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"]
+WEEKDAYS_SHORT_NL = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"]
+MONTHS_NL = ["januari", "februari", "maart", "april", "mei", "juni",
+             "juli", "augustus", "september", "oktober", "november", "december"]
+MONTHS_SHORT_NL = ["jan", "feb", "mrt", "apr", "mei", "jun",
+                   "jul", "aug", "sep", "okt", "nov", "dec"]
 
 
 async def gather_state() -> dict:
@@ -28,10 +36,13 @@ async def gather_state() -> dict:
         log.warning("fact fetch failed: %s", e)
         fact = FACT_ERROR
 
+    today = datetime.now()
+    tomorrow = today + timedelta(days=1)
+
     return {
         "header": {
-            "weekday": "Dinsdag",
-            "date": "26 mei 2026",
+            "weekday": WEEKDAYS_NL[today.weekday()],
+            "date": f"{today.day} {MONTHS_NL[today.month - 1]} {today.year}",
             "weather": {
                 "icon": "⛅",
                 "temp_high": 21,
@@ -42,8 +53,8 @@ async def gather_state() -> dict:
         },
         "today_events": [],
         "tomorrow": {
-            "weekday_short": "Wo",
-            "date_short": "27 mei",
+            "weekday_short": WEEKDAYS_SHORT_NL[tomorrow.weekday()],
+            "date_short": f"{tomorrow.day} {MONTHS_SHORT_NL[tomorrow.month - 1]}",
             "weather_icon": "⛅",
             "temp_high": "20°",
             "events": [
