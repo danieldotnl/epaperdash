@@ -1,15 +1,26 @@
-"""Thin async wrapper around the HA Supervisor-proxied REST API.
+"""Thin async wrapper around the HA REST API.
 
-Used inside an add-on with `homeassistant_api: true` so Supervisor injects
-SUPERVISOR_TOKEN. Outside that context the token is absent and calls fail
-fast with a clear log line.
+In the add-on (`homeassistant_api: true`) Supervisor injects SUPERVISOR_TOKEN and
+the core API is at http://supervisor/core. For local dev, set HA_SERVER + HA_TOKEN
+(e.g. via a repo-root .env) to point at a real HA instance instead. See
+`_connection()`.
 """
 
 import logging
 import os
 from datetime import datetime
+from pathlib import Path
 
 import httpx
+
+# Dev convenience: load HA_SERVER/HA_TOKEN from a repo-root .env. No-op in the
+# add-on, where the file is absent and SUPERVISOR_TOKEN takes precedence.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except ImportError:
+    pass
 
 log = logging.getLogger("epaperdash")
 
@@ -22,17 +33,37 @@ class HAClientError(Exception):
     """Raised when the HA state can't be retrieved or is not usable."""
 
 
+def _connection() -> tuple[str, str]:
+    """Return `(base_url, token)` for talking to HA.
+
+    Prefer the Supervisor-injected token (add-on/production); fall back to
+    HA_SERVER + HA_TOKEN for local dev. Raise HAClientError if neither is set.
+    """
+    token = os.environ.get("SUPERVISOR_TOKEN")
+    if token:
+        return BASE_URL, token
+
+    server = os.environ.get("HA_SERVER")
+    token = os.environ.get("HA_TOKEN")
+    if server and token:
+        if not server.startswith(("http://", "https://")):
+            server = f"http://{server}"
+        return server.rstrip("/"), token
+
+    raise HAClientError(
+        "no HA credentials: set SUPERVISOR_TOKEN (add-on) or HA_SERVER + HA_TOKEN (dev)"
+    )
+
+
 async def get_entity(entity_id: str) -> tuple[str, dict]:
     """Return `(state, attributes)` for an entity, or raise HAClientError.
 
     Raises on: missing token, network error, non-2xx response, or a state
     value that's empty/unknown/unavailable.
     """
-    token = os.environ.get("SUPERVISOR_TOKEN")
-    if not token:
-        raise HAClientError("SUPERVISOR_TOKEN not set")
+    base_url, token = _connection()
 
-    url = f"{BASE_URL}/api/states/{entity_id}"
+    url = f"{base_url}/api/states/{entity_id}"
     headers = {"Authorization": f"Bearer {token}"}
 
     try:
@@ -65,11 +96,9 @@ async def get_forecasts(entity_id: str, forecast_type: str = "daily") -> list[di
         {"changed_states": [...],
          "service_response": {entity_id: {"forecast": [ {...}, ... ]}}}
     """
-    token = os.environ.get("SUPERVISOR_TOKEN")
-    if not token:
-        raise HAClientError("SUPERVISOR_TOKEN not set")
+    base_url, token = _connection()
 
-    url = f"{BASE_URL}/api/services/weather/get_forecasts"
+    url = f"{base_url}/api/services/weather/get_forecasts"
     headers = {"Authorization": f"Bearer {token}"}
     payload = {"entity_id": entity_id, "type": forecast_type}
 
@@ -92,11 +121,9 @@ async def get_forecasts(entity_id: str, forecast_type: str = "daily") -> list[di
 
 async def calendar_events(entity_id: str, start: datetime, end: datetime) -> list[dict]:
     """Return events for `entity_id` in [start, end). Raises HAClientError on failure."""
-    token = os.environ.get("SUPERVISOR_TOKEN")
-    if not token:
-        raise HAClientError("SUPERVISOR_TOKEN not set")
+    base_url, token = _connection()
 
-    url = f"{BASE_URL}/api/calendars/{entity_id}"
+    url = f"{base_url}/api/calendars/{entity_id}"
     params = {"start": start.isoformat(), "end": end.isoformat()}
     headers = {"Authorization": f"Bearer {token}"}
 
