@@ -48,7 +48,7 @@ CALENDARS = [
     ("calendar.home_assistant", "calendar"),
     ("calendar.parro_agenda", "school"),
 ]
-AGENDA_ROW_CAP = 8  # max entry rows across VANDAAG + MORGEN + DEZE WEEK combined
+AGENDA_ROW_CAP = 7  # max entry rows across VANDAAG + MORGEN + DEZE WEEK combined
 CALENDAR_WINDOW_DAYS = 8  # enough to cover today + tomorrow + next-7-day panel
 
 WEATHER_ENTITY = "weather.tomorrow_io_home_daily"
@@ -427,4 +427,5 @@ async def gather_state() -> dict:
         "recycling": waste_rows,
         "birthdays": birthday_rows,
         "fact": fact,
+        "refreshed": now.strftime("%H%M"),
     }
