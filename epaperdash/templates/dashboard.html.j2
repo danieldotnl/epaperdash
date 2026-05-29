@@ -173,11 +173,16 @@
     column-gap: 8px;
     align-items: baseline;
     padding: 3px 0;
-    border-bottom: 1px solid var(--ink);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  .week-row:last-child { border-bottom: none; }
+  /* A rule means "new day." Only draw it between two week-rows (so the
+     first row has no extra line above it — the section header's underline
+     already separates it), and skip it when the next row shares the
+     previous row's date. Same-day rows also blank their day-stamp (column
+     stays reserved for alignment) so they read as continuations. */
+  .week-row + .week-row:not(.same-day) { border-top: 1px solid var(--ink); }
+  .week-row.same-day .day-stamp { visibility: hidden; }
   .week-row .day-stamp {
     font-size: calc(12px * var(--scale));
     font-weight: 700;
@@ -337,13 +342,15 @@
           <div class="lbl">DEZE WEEK</div>
         </div>
         {% if week_rows %}
+          {% set ns = namespace(prev=None) %}
           {% for r in week_rows %}
-          <div class="week-row">
+          <div class="week-row{% if ns.prev == r.date_short %} same-day{% endif %}">
             <div class="day-stamp">{{ r.weekday_short }} {{ r.date_short }}</div>
             <div class="icon">{{ icons[r.cat] }}</div>
             <div class="title">{{ r.title }}</div>
             <div class="when">{{ r.time }}</div>
           </div>
+          {% set ns.prev = r.date_short %}
           {% endfor %}
         {% else %}
           <div class="empty">— geen afspraken —</div>
