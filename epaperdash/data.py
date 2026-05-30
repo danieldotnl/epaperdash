@@ -68,6 +68,8 @@ WEATHER_CONDITIONS_NL = {
     "windy": "Winderig", "windy-variant": "Winderig", "exceptional": "Extreem weer",
 }
 
+BATTERY_ENTITY = "sensor.epaper_bw_battery_level"
+
 BIRTHDAYS_ENTITY = "calendar.ha_birthdays"
 BIRTHDAY_PANEL_LIMIT = 4
 BIRTHDAY_WINDOW_DAYS = 366  # one full year so every annual entry yields one occurrence
@@ -385,6 +387,19 @@ async def _gather_weather() -> tuple[dict, dict]:
     return _last_weather
 
 
+async def _gather_battery() -> int | None:
+    """Panel battery level as a whole percentage, or None if unavailable."""
+    try:
+        state = await get_state(BATTERY_ENTITY)
+    except HAClientError as e:
+        log.warning("battery fetch failed: %s", e)
+        return None
+    try:
+        return round(float(state))
+    except (TypeError, ValueError):
+        return None
+
+
 async def gather_state() -> dict:
     try:
         fact = await get_state(FACT_ENTITY)
@@ -398,6 +413,7 @@ async def gather_state() -> dict:
     cal_today, cal_tomorrow, week_rows = await _gather_calendar(now)
     birthday_rows, bday_today, bday_tomorrow = await _gather_birthdays(now)
     header_weather, tomorrow_weather = await _gather_weather()
+    battery = await _gather_battery()
 
     today_events = bday_today + waste_today_events + cal_today
     tomorrow_events = bday_tomorrow + cal_tomorrow
@@ -428,4 +444,5 @@ async def gather_state() -> dict:
         "birthdays": birthday_rows,
         "fact": fact,
         "refreshed": now.strftime("%H%M"),
+        "battery": battery,
     }
