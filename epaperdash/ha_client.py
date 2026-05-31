@@ -26,6 +26,7 @@ log = logging.getLogger("epaperdash")
 
 BASE_URL = "http://supervisor/core"
 TIMEOUT_SECONDS = 5.0
+IMAGE_TIMEOUT_SECONDS = 30.0  # photos are larger than the state/forecast JSON
 _UNAVAILABLE = {"", "unknown", "unavailable", "none"}
 
 
@@ -84,6 +85,54 @@ async def get_entity(entity_id: str) -> tuple[str, dict]:
 async def get_state(entity_id: str) -> str:
     state, _ = await get_entity(entity_id)
     return state
+
+
+async def fetch_image(url: str) -> bytes:
+    """GET an external image URL (no HA auth). Raises HAClientError on failure."""
+    try:
+        async with httpx.AsyncClient(
+            timeout=IMAGE_TIMEOUT_SECONDS, follow_redirects=True
+        ) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            return resp.content
+    except httpx.HTTPError as e:
+        raise HAClientError(f"image fetch failed for {url}: {e}") from e
+
+
+async def get_entity_image(entity_id: str) -> bytes:
+    """Return the current image bytes for an HA `camera.*` or `image.*` entity.
+
+    Tries the camera proxy first (works for camera entities); falls back to the
+    entity's `entity_picture` attribute (used by image entities). Raises
+    HAClientError if neither yields an image.
+    """
+    base_url, token = _connection()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    async with httpx.AsyncClient(
+        timeout=IMAGE_TIMEOUT_SECONDS, follow_redirects=True
+    ) as client:
+        proxy_url = f"{base_url}/api/camera_proxy/{entity_id}"
+        try:
+            resp = await client.get(proxy_url, headers=headers)
+            resp.raise_for_status()
+            return resp.content
+        except httpx.HTTPError as e:
+            log.info("camera_proxy failed for %s (%s); trying entity_picture", entity_id, e)
+
+        # image.* entities expose a tokenised entity_picture path instead.
+        _, attrs = await get_entity(entity_id)
+        picture = attrs.get("entity_picture")
+        if not picture:
+            raise HAClientError(f"{entity_id}: no camera_proxy image and no entity_picture")
+        pic_url = picture if picture.startswith(("http://", "https://")) else f"{base_url}{picture}"
+        try:
+            resp = await client.get(pic_url, headers=headers)
+            resp.raise_for_status()
+            return resp.content
+        except httpx.HTTPError as e:
+            raise HAClientError(f"image fetch failed for {entity_id}: {e}") from e
 
 
 async def get_forecasts(entity_id: str, forecast_type: str = "daily") -> list[dict]:

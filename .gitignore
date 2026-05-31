@@ -13,7 +13,11 @@ venv/
 dashboard*.png
 dashboard_*.png
 served*.png
+photo*.png
 *.bmp
+
+# Local dev test fixtures (e.g. private sample photos)
+samples/
 
 # Secrets
 .env
