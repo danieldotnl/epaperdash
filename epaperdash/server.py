@@ -6,12 +6,15 @@ Run:  uv run uvicorn server:app --host 0.0.0.0 --port 8000 --reload
 import logging
 import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse, Response
 from playwright.async_api import async_playwright
 
 from data import gather_state
+from dither import dither
+from ha_client import HAClientError, fetch_image, get_entity_image
 from renderer import Renderer
 
 logging.basicConfig(
@@ -52,6 +55,79 @@ async def dashboard(raw: bool = False) -> Response:
         png = await app.state.renderer.render(await gather_state(), raw=raw)
     except Exception:
         log.exception("render failed")
+        raise
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+def _img_media_type(data: bytes) -> str:
+    """Best-effort content type from magic bytes (used for the raw passthrough)."""
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return "application/octet-stream"
+
+
+# Dev-only: photos dropped here are servable via ?sample=. Not shipped in the
+# add-on image (the dir is git-ignored), so ?sample= simply 404s in production.
+SAMPLES_DIR = Path(__file__).resolve().parent.parent / "samples"
+
+
+def _read_sample(name: str) -> bytes:
+    """Read a file from the local samples/ dir; .name strips any path traversal."""
+    path = SAMPLES_DIR / Path(name).name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail=f"no sample {name!r} in {SAMPLES_DIR}")
+    return path.read_bytes()
+
+
+@app.get("/photo.png")
+async def photo(
+    url: str | None = None,
+    entity: str | None = None,
+    sample: str | None = None,
+    fit: str = "cover",
+    raw: bool = False,
+) -> Response:
+    """Fetch a photo and dither it for the Spectra 6 (reTerminal E1002) panel.
+
+    Source — exactly one of: ?url= (any image URL), ?entity= (an HA camera.*/image.*),
+    or ?sample= (a filename in the local samples/ dir, dev only). ?fit=cover|contain
+    controls framing; ?raw=true returns the fetched source untouched.
+    """
+    if [bool(url), bool(entity), bool(sample)].count(True) != 1:
+        raise HTTPException(
+            status_code=400, detail="provide exactly one of ?url=, ?entity= or ?sample="
+        )
+
+    try:
+        if url:
+            src = await fetch_image(url)
+        elif entity:
+            src = await get_entity_image(entity)
+        else:
+            src = _read_sample(sample)
+    except HAClientError as e:
+        log.warning("photo fetch failed: %s", e)
+        raise HTTPException(status_code=502, detail=str(e))
+
+    if raw:
+        return Response(
+            content=src,
+            media_type=_img_media_type(src),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    try:
+        png = dither(src, fit=fit)
+    except Exception:
+        log.exception("dither failed")
         raise
     return Response(
         content=png,
