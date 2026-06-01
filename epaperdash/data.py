@@ -388,7 +388,12 @@ async def _gather_weather() -> tuple[dict, dict]:
 
 
 async def _gather_battery() -> int | None:
-    """Panel battery level as a whole percentage, or None if unavailable."""
+    """Panel battery level as a whole percentage, or None if unavailable.
+
+    The panel pushes a spurious 0% to HA at each deep-sleep wake before its ADC
+    settles; that's filtered out on the ESPHome side (`filter_out: 0.0`), so the
+    entity keeps the previous cycle's real reading during the wake window.
+    """
     try:
         state = await get_state(BATTERY_ENTITY)
     except HAClientError as e:
