@@ -29,6 +29,10 @@ log = logging.getLogger("epaperdash")
 TIMEOUT_SECONDS = 10.0
 IMAGE_TIMEOUT_SECONDS = 30.0  # photos are larger than the album JSON
 
+# Remember the asset shown last per album so we never refresh to the same photo
+# twice in a row. Keyed by the resolved album id; survives for the process life.
+_last_shown: dict[str, str] = {}
+
 
 class ImmichClientError(Exception):
     """Raised when an Immich photo can't be retrieved."""
@@ -78,7 +82,11 @@ async def get_random_album_photo(album_id: str | None = None) -> bytes:
         if not assets:
             raise ImmichClientError(f"album {album_id!r} has no image assets")
 
-        asset_id = random.choice(assets)["id"]
+        # Exclude the photo we showed last time so a refresh always changes the
+        # screen. With only one image there's nothing else to pick, so keep it.
+        candidates = [a for a in assets if a["id"] != _last_shown.get(album_id)] or assets
+        asset_id = random.choice(candidates)["id"]
+        _last_shown[album_id] = asset_id
         try:
             resp = await client.get(
                 f"{base_url}/api/assets/{asset_id}/thumbnail",
