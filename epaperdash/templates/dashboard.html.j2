@@ -404,7 +404,7 @@
     <div class="fact">{{ fact|safe }}</div>
     <div class="stamp">
       <span>{{ refreshed }}</span>
-      {% if battery is not none %}<span class="batt">{% if battery < 10 %}<span class="warn">⚠</span>{% else %}{{ battery }}%{% endif %}</span>{% endif %}
+      {% if battery is not none %}<span class="batt">{% if battery < 15 %}<span class="warn">⚠</span>{% else %}{{ battery }}%{% endif %}</span>{% endif %}
     </div>
   </footer>
 

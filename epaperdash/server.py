@@ -3,7 +3,9 @@
 Run:  uv run uvicorn server:app --host 0.0.0.0 --port 8000 --reload
 """
 
+import json
 import logging
+import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -15,6 +17,7 @@ from playwright.async_api import async_playwright
 from data import gather_state
 from dither import dither
 from ha_client import HAClientError, fetch_image, get_entity_image
+from immich_client import ImmichClientError, get_random_album_photo
 from renderer import Renderer
 
 logging.basicConfig(
@@ -24,6 +27,31 @@ logging.basicConfig(
     stream=sys.stderr,
 )
 log = logging.getLogger("epaperdash")
+
+
+def _load_addon_options() -> None:
+    """Fold HA add-on options into os.environ (no-op outside the add-on).
+
+    Supervisor writes the configured options to /data/options.json; the bare
+    `uvicorn` CMD doesn't export them, so we map each key to its UPPER_CASE env
+    var (immich_url -> IMMICH_URL). Existing env wins, so a dev `.env` and the
+    injected SUPERVISOR_TOKEN are never clobbered. Blank options are skipped.
+    """
+    path = Path("/data/options.json")
+    if not path.is_file():
+        return
+    try:
+        options = json.loads(path.read_text())
+    except (OSError, ValueError) as e:
+        log.warning("could not read %s: %s", path, e)
+        return
+    for key, value in options.items():
+        env_key = key.upper()
+        if env_key not in os.environ and value not in (None, ""):
+            os.environ[env_key] = str(value)
+
+
+_load_addon_options()
 
 
 @asynccontextmanager
@@ -92,18 +120,23 @@ async def photo(
     url: str | None = None,
     entity: str | None = None,
     sample: str | None = None,
+    immich: str | None = None,
     fit: str = "cover",
     raw: bool = False,
 ) -> Response:
     """Fetch a photo and dither it for the Spectra 6 (reTerminal E1002) panel.
 
     Source — exactly one of: ?url= (any image URL), ?entity= (an HA camera.*/image.*),
-    or ?sample= (a filename in the local samples/ dir, dev only). ?fit=cover|contain
-    controls framing; ?raw=true returns the fetched source untouched.
+    ?sample= (a filename in the local samples/ dir, dev only), or ?immich= (a random
+    photo from an Immich album; pass an album ID, or "1"/"" to use IMMICH_ALBUM).
+    ?fit=cover|contain controls framing; ?raw=true returns the fetched source untouched.
     """
-    if [bool(url), bool(entity), bool(sample)].count(True) != 1:
+    # immich uses `is not None` so a bare ?immich (empty value) selects the configured
+    # album; the others require a non-empty value, else a blank ?url= is a 400 not a 502.
+    if [bool(url), bool(entity), bool(sample), immich is not None].count(True) != 1:
         raise HTTPException(
-            status_code=400, detail="provide exactly one of ?url=, ?entity= or ?sample="
+            status_code=400,
+            detail="provide exactly one of ?url=, ?entity=, ?sample= or ?immich=",
         )
 
     try:
@@ -111,9 +144,13 @@ async def photo(
             src = await fetch_image(url)
         elif entity:
             src = await get_entity_image(entity)
-        else:
+        elif sample:
             src = _read_sample(sample)
-    except HAClientError as e:
+        else:
+            # ?immich alone (no value) or ?immich=1 -> configured album; else treat as album ID.
+            album_id = immich if immich not in ("", "1") else None
+            src = await get_random_album_photo(album_id)
+    except (HAClientError, ImmichClientError) as e:
         log.warning("photo fetch failed: %s", e)
         raise HTTPException(status_code=502, detail=str(e))
 
