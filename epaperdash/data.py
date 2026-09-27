@@ -7,6 +7,7 @@ the daily get_forecasts action). Nothing on the dashboard is hardcoded.
 Event categories used by the template:
   - calendar   ◆  (regular agenda items — calendar.home_assistant)
   - school     ✎  (calendar.parro_agenda)
+  - sport      ⚽  (calendar.jo9_2_wedstrijden)
   - holiday    ★  (calendar.holidays_in_netherlands)
   - birthday   ✿  (calendar.ha_birthdays, also surfaced in VANDAAG/MORGEN)
   - waste      ♻  (today's pickup, surfaced in VANDAAG)
@@ -47,6 +48,7 @@ CALENDARS = [
     ("calendar.holidays_in_netherlands", "holiday"),
     ("calendar.home_assistant", "calendar"),
     ("calendar.parro_agenda", "school"),
+    ("calendar.jo9_2_wedstrijden", "sport"),
 ]
 AGENDA_ROW_CAP = 7  # max entry rows across VANDAAG + MORGEN + DEZE WEEK combined
 CALENDAR_WINDOW_DAYS = 8  # enough to cover today + tomorrow + next-7-day panel

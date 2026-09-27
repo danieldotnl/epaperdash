@@ -1,5 +1,5 @@
 name: ePaperDash
-version: "0.9.1"
+version: "0.9.2"
 slug: epaperdash
 description: Renders a dashboard image for an e-paper panel
 arch:
