@@ -11,6 +11,9 @@ WORKDIR /app
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+# Fetch the browser matching whatever Playwright pip resolved; the base image only
+# ships the build for its own tag, so a newer pip Playwright can't launch otherwise.
+RUN playwright install --with-deps --only-shell chromium
 
 COPY *.py ./
 COPY templates ./templates
