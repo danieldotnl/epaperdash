@@ -1,6 +1,6 @@
 """gather_state() collects the live dashboard payload from HA.
 
-Live: wist-je-dat fact, afval (cyclus_* + cleanprofs_gft), agenda
+Live: wist-je-dat fact, afval (cyclus_* + cleanprofs reiniging gft), agenda
 (calendar.* entities), birthdays, and weather (weather.* entity state +
 the daily get_forecasts action). Nothing on the dashboard is hardcoded.
 
@@ -41,7 +41,7 @@ WASTE_FRACTIONS = {
     "pmd": "PMD",
     "restafval": "Restafval",
 }
-CLEANPROFS_ENTITY = "sensor.cleanprofs_gft"
+CLEANPROFS_ENTITY = "sensor.afvalbeheer_cleanprofs_reiniging_gft"
 WASTE_ROW_LIMIT = 4
 
 CALENDARS = [

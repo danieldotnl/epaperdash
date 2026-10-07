@@ -1,5 +1,5 @@
 name: ePaperDash
-version: "0.9.3"
+version: "0.10.0"
 slug: epaperdash
 description: Renders a dashboard image for an e-paper panel
 arch:
@@ -14,7 +14,9 @@ options:
   immich_url: ""
   immich_api_key: ""
   immich_album: ""
+  photo_entity: ""
 schema:
   immich_url: str?
   immich_api_key: password?
   immich_album: str?
+  photo_entity: str?

@@ -130,7 +130,13 @@ async def photo(
     ?sample= (a filename in the local samples/ dir, dev only), or ?immich= (a random
     photo from an Immich album; pass an album ID, or "1"/"" to use IMMICH_ALBUM).
     ?fit=cover|contain controls framing; ?raw=true returns the fetched source untouched.
+
+    If PHOTO_ENTITY is set, an ?immich request serves that HA camera.*/image.* entity
+    instead, so what the panel shows can change without reflashing its URL.
     """
+    if immich is not None and not (url or entity or sample) and os.environ.get("PHOTO_ENTITY"):
+        entity, immich = os.environ["PHOTO_ENTITY"], None
+
     # immich uses `is not None` so a bare ?immich (empty value) selects the configured
     # album; the others require a non-empty value, else a blank ?url= is a 400 not a 502.
     if [bool(url), bool(entity), bool(sample), immich is not None].count(True) != 1:
